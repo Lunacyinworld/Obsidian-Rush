@@ -1,0 +1,8 @@
+{
+  "name": "obsidian-rush",
+  "version": "1.0.0",
+  "description": "Shooter de arena 1v1 con IA y ligas competitivas",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "ws": "^8.18.0" }
+}

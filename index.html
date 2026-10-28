@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obsidian Rush</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,600;1,700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07070c;--ink:#e8ecf4;--dim:#7d86a0;--cy:#38f0ff;--mg:#ff3d81;--ob:#b44cff;--panel:#11101c}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:'Chakra Petch',system-ui,sans-serif}
+.scr{display:none}.scr.on{display:block}
+button{font:inherit;font-weight:600;color:var(--ink);background:var(--panel);border:1px solid var(--ob);padding:11px 20px;border-radius:2px;cursor:pointer}
+button:hover{background:var(--ob)}button:focus-visible,input:focus-visible{outline:2px solid var(--cy);outline-offset:2px}
+button.sel{background:var(--ob)}
+input{font:inherit;background:var(--panel);color:var(--ink);border:1px solid #2b2942;padding:10px;border-radius:2px;width:100%}
+#menu{max-width:860px;margin:0 auto;padding:28px 16px}
+h1{font-size:clamp(44px,9vw,84px);font-style:italic;font-weight:700;margin:0;line-height:.95;text-shadow:3px 0 var(--mg),-3px 0 var(--cy)}
+.tag{color:var(--dim);margin:8px 0 22px}
+.card{display:flex;gap:16px;align-items:center;background:var(--panel);border:1px solid #2b2942;padding:16px;margin-bottom:12px}
+.card>div:last-child{flex:1}
+.bd{display:inline-flex;align-items:center;justify-content:center;width:58px;height:66px;background:var(--c);color:#07070c;font-weight:700;font-size:26px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
+.bd.s{width:26px;height:30px;font-size:13px}
+.bar{height:6px;background:#23213a;margin:6px 0}.bar i{display:block;height:100%;background:var(--cy)}
+small,.dim{color:var(--dim)}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.mode{background:var(--panel);border:1px solid #2b2942;padding:18px;display:flex;flex-direction:column;gap:12px}
+.mode h2{margin:0;font-size:24px}.mode p{margin:0;color:var(--dim)}
+.mode.rk{border-color:var(--ob)}
+.diffs{display:flex;gap:6px}.diffs button{flex:1;padding:8px}
+#top{margin-top:20px}#top div{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #1d1b30}
+#top b{flex:1}
+#queue,#res{position:fixed;inset:0;background:rgba(7,7,12,.92);text-align:center;padding-top:22vh;z-index:5}
+#queue h2,#res h2{font-size:clamp(32px,7vw,60px);font-style:italic;margin:0 0 10px}
+#res h2.w{color:var(--cy)}#res h2.l{color:var(--mg)}
+#stage{text-align:center}
+#cv{display:block;margin:0 auto;width:min(100vw,calc(100vh*1200/700));height:auto;cursor:crosshair}
+#conn{position:fixed;top:0;left:0;right:0;background:var(--mg);color:#000;text-align:center;padding:6px;z-index:9;font-weight:600}
+</style>
+</head>
+<body>
+<div id="conn" hidden>Reconectando con el servidor…</div>
+
+<section id="menu" class="scr on">
+  <h1>OBSIDIAN<br>RUSH</h1>
+  <p class="tag">Arena 1 contra 1. Cinco bajas ganan la partida.</p>
+  <div class="card">
+    <div id="badge"></div>
+    <div><b id="pname" style="font-size:20px"></b><div id="lgn"></div><div class="bar"><i id="pb"></i></div><small id="pt"></small></div>
+    <div style="max-width:170px"><input id="name" maxlength="14" placeholder="Tu nombre" aria-label="Tu nombre"><small id="rec"></small></div>
+  </div>
+  <div class="modes">
+    <div class="mode"><h2>Normal</h2><p>Contra la IA. No cambia tu liga. "Pro" juega a nivel competitivo.</p>
+      <div class="diffs" id="diffs"><button data-d="easy">Fácil</button><button data-d="normal" class="sel">Normal</button><button data-d="pro">Pro</button></div>
+      <button id="playAi">Jugar contra IA</button></div>
+    <div class="mode rk"><h2>Competitivo</h2><p>Contra jugadores reales. Gana puntos y sube de Bronce a Obsidiana.</p><button id="playRk" style="margin-top:auto">Buscar partida</button></div>
+  </div>
+  <div id="top"></div>
+  <p><small id="online"></small></p>
+  <p><small>Controles: WASD para moverte, ratón para apuntar, clic para disparar.</small></p>
+</section>
+
+<section id="queue" class="scr"><h2>Buscando rival</h2><p class="dim">Tiempo de espera: <span id="qt">0</span> s. El rango de puntos se amplía con la espera.</p><button id="cancel">Cancelar</button></section>
+<section id="stage" class="scr"><canvas id="cv" width="1200" height="700"></canvas></section>
+<section id="res"><h2 id="rt"></h2><p id="rs" style="font-size:28px;margin:0"></p><p id="rx" class="dim" style="font-size:20px"></p><button id="back">Volver al menú</button></section>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LG=[['Bronce',0,'#cd7f32'],['Plata',1000,'#c0c8d4'],['Oro',1200,'#ffc83d'],['Platino',1400,'#5ff0d0'],['Diamante',1600,'#6ab7ff'],['Obsidiana',1800,'#b44cff']];
+const lg=e=>{let i=0;LG.forEach((l,k)=>{if(e>=l[1])i=k});return i};
+const badge=(i,s)=>`<span class="bd ${s?'s':''}" style="--c:${LG[i][2]}">${LG[i][0][0]}</span>`;
+const rid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+const tok=(()=>{try{let t=localStorage.getItem('or_tok');if(!t){t=(crypto.randomUUID?crypto.randomUUID():rid());localStorage.setItem('or_tok',t)}return t}catch{return rid()}})();
+try{$('name').value=localStorage.getItem('or_name')||''}catch{}
+const cv=$('cv'),ctx=cv.getContext('2d');
+let ws,prof=null,M=null,S=null,Rp=[[0,0],[0,0]],parts=[],shake=0,keys=[0,0,0,0],mouse={x:600,y:350,down:0},inM=false,qT=null,diff='normal';
+const send=o=>ws&&ws.readyState===1&&ws.send(JSON.stringify(o));
+const scr=id=>['menu','queue','stage'].forEach(s=>$(s).classList.toggle('on',s===id));
+const hello=()=>{const n=$('name').value.trim()||'Jugador';try{localStorage.setItem('or_name',n)}catch{}send({t:'hello',token:tok,name:n})};
+
+function connect(){
+  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
+  ws.onopen=()=>{$('conn').hidden=true;hello();send({t:'top'})};
+  ws.onclose=()=>{$('conn').hidden=false;inM=false;setTimeout(connect,2000)};
+  ws.onmessage=e=>{const m=JSON.parse(e.data);
+    if(m.t==='profile'){prof=m;renderProf()}
+    else if(m.t==='top')$('top').innerHTML='<h2 style="margin:0 0 6px">Mejores jugadores</h2>'+m.list.map((p,i)=>`<div>${badge(lg(p.elo),1)}<b>${i+1}. ${esc(p.name)}</b><span>${p.elo}</span></div>`).join('');
+    else if(m.t==='match'){M=m;S=null;parts=[];clearInterval(qT);$('res').classList.remove('on');scr('stage');inM=true}
+    else if(m.t==='s'){if(S)m.p.forEach((p,i)=>{if(p[3]<S.p[i][3])hit(p[0],p[1],i===M.you)});else Rp=m.p.map(p=>[p[0],p[1]]);S=m}
+    else if(m.t==='end'){inM=false;$('rt').textContent=m.win?'Victoria':'Derrota';$('rt').className=m.win?'w':'l';$('rs').textContent=m.sc[M.you]+' – '+m.sc[1-M.you];
+      let x='Partida normal: no cambia tu liga.';
+      if(m.ranked){const a=lg(m.elo-m.delta),b=lg(m.elo);x=(m.delta>=0?'+':'')+m.delta+' puntos';if(b>a)x+='. ¡Subiste a '+LG[b][0]+'!';if(b<a)x+='. Bajaste a '+LG[b][0]+'.'}
+      $('rx').textContent=x;$('res').classList.add('on')}
+  };
+}
+function renderProf(){const i=lg(prof.elo),n=LG[i+1];
+  $('badge').innerHTML=badge(i);$('pname').textContent=prof.name;$('lgn').textContent=LG[i][0]+' - '+prof.elo+' puntos';
+  $('pb').style.width=(n?Math.min(100,(prof.elo-LG[i][1])/(n[1]-LG[i][1])*100):100)+'%';
+  $('pt').textContent=n?(n[1]-prof.elo)+' puntos para '+n[0]:'Liga máxima';
+  $('rec').textContent=prof.w+' victorias, '+prof.l+' derrotas';$('online').textContent=prof.online+' en línea';}
+
+$('name').onchange=hello;
+$('diffs').onclick=e=>{const d=e.target.dataset.d;if(!d)return;diff=d;[...$('diffs').children].forEach(b=>b.classList.toggle('sel',b===e.target))};
+$('playAi').onclick=()=>{hello();send({t:'play',mode:'ai',diff})};
+$('playRk').onclick=()=>{hello();send({t:'play',mode:'rk'});scr('queue');let s=0;$('qt').textContent=0;qT=setInterval(()=>$('qt').textContent=++s,1000)};
+$('cancel').onclick=()=>{send({t:'cancel'});clearInterval(qT);scr('menu')};
+$('back').onclick=()=>{$('res').classList.remove('on');scr('menu');send({t:'top'})};
+
+const KM={KeyW:0,ArrowUp:0,KeyS:1,ArrowDown:1,KeyA:2,ArrowLeft:2,KeyD:3,ArrowRight:3};
+addEventListener('keydown',e=>{if(inM&&e.code in KM){keys[KM[e.code]]=1;e.preventDefault()}});
+addEventListener('keyup',e=>{if(e.code in KM)keys[KM[e.code]]=0});
+cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect();mouse.x=(e.clientX-r.left)*1200/r.width;mouse.y=(e.clientY-r.top)*700/r.height});
+cv.addEventListener('mousedown',e=>{mouse.down=1;e.preventDefault()});
+addEventListener('mouseup',()=>mouse.down=0);
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+setInterval(()=>{if(!inM||!S)return;const me=Rp[M.you];send({t:'in',k:keys,a:Math.atan2(mouse.y-me[1],mouse.x-me[0]),s:mouse.down})},33);
+
+function hit(x,y,mine){for(let i=0;i<16;i++){const a=Math.random()*6.28,v=60+Math.random()*220;parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:.5,c:mine?'#38f0ff':'#ff3d81'})}shake=mine?14:6}
+function draw(){requestAnimationFrame(draw);if(!inM||!S)return;
+  Rp.forEach((r,i)=>{r[0]+=(S.p[i][0]-r[0])*.6;r[1]+=(S.p[i][1]-r[1])*.6});
+  ctx.save();ctx.fillStyle='#07070c';ctx.fillRect(0,0,1200,700);
+  if(shake>0){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.85;if(shake<.5)shake=0}
+  ctx.strokeStyle='rgba(120,140,200,.07)';ctx.lineWidth=1;ctx.beginPath();for(let x=0;x<=1200;x+=50){ctx.moveTo(x,0);ctx.lineTo(x,700)}for(let y=0;y<=700;y+=50){ctx.moveTo(0,y);ctx.lineTo(1200,y)}ctx.stroke();
+  ctx.strokeStyle='#b44cff';ctx.lineWidth=3;ctx.shadowColor='#b44cff';ctx.shadowBlur=18;ctx.strokeRect(1.5,1.5,1197,697);
+  M.walls.forEach(([x,y,w,h])=>{ctx.fillStyle='#11101c';ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h)});
+  S.b.forEach(b=>{ctx.fillStyle=ctx.shadowColor=b[2]===M.you?'#38f0ff':'#ff3d81';ctx.shadowBlur=12;ctx.beginPath();ctx.arc(b[0],b[1],4,0,7);ctx.fill()});
+  S.p.forEach((p,i)=>{const c=i===M.you?'#38f0ff':'#ff3d81',[x,y]=Rp[i],dead=p[3]<=0;
+    ctx.globalAlpha=dead?.25:1;ctx.shadowColor=c;ctx.shadowBlur=16;ctx.strokeStyle=c;ctx.lineWidth=3;ctx.fillStyle='#0d0c18';
+    ctx.beginPath();ctx.arc(x,y,16,0,7);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+Math.cos(p[2])*28,y+Math.sin(p[2])*28);ctx.lineWidth=5;ctx.stroke();
+    ctx.shadowBlur=0;ctx.fillStyle='#23213a';ctx.fillRect(x-20,y-32,40,5);ctx.fillStyle=c;ctx.fillRect(x-20,y-32,40*p[3]/100,5);ctx.globalAlpha=1});
+  parts=parts.filter(p=>(p.l-=.016)>0);parts.forEach(p=>{p.x+=p.vx*.016;p.y+=p.vy*.016;ctx.globalAlpha=p.l*2;ctx.fillStyle=p.c;ctx.fillRect(p.x,p.y,3,3)});ctx.globalAlpha=1;
+  ctx.shadowBlur=0;ctx.fillStyle='#e8ecf4';ctx.textAlign='center';ctx.font='700 28px "Chakra Petch",sans-serif';
+  ctx.fillText(S.sc[M.you]+'  :  '+S.sc[1-M.you],600,40);
+  ctx.font='600 16px "Chakra Petch",sans-serif';ctx.fillStyle='#38f0ff';ctx.textAlign='left';ctx.fillText(M.names[M.you],20,32);
+  ctx.fillStyle='#ff3d81';ctx.textAlign='right';ctx.fillText(M.names[1-M.you],1180,32);
+  if(S.ph==='wait'){ctx.fillStyle='#e8ecf4';ctx.textAlign='center';ctx.font='italic 700 44px "Chakra Petch",sans-serif';ctx.fillText('Siguiente ronda',600,360)}
+  ctx.restore();}
+draw();connect();
+</script>
+</body>
+</html>
