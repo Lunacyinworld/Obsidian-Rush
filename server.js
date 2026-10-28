@@ -67,7 +67,7 @@ function tick(m) {
   if (m.over) return;
   if (m.phase === 'wait') { if ((m.pt -= DT) <= 0) resetRound(m); return bc(m); }
   m.ps.forEach((p, i) => {
-    if (p.e.bot) think(m, i); else { p.mv = [p.k[3] - p.k[2], p.k[1] - p.k[0]]; p.spd = 1; }
+    if (p.e.bot) think(m, i); else p.spd = 1;
     move(p);
     if ((p.cd -= DT) <= 0 && p.s) { p.cd = .28; const c = Math.cos(p.a), s = Math.sin(p.a); m.bullets.push({ x: p.x + c * 22, y: p.y + s * 22, vx: c * 650, vy: s * 650, o: i, l: 1.3 }); }
   });
@@ -128,7 +128,7 @@ wss.on('connection', ws => {
       else { u.q = Date.now(); queue.push(u); send(ws, { t: 'queue' }); }
     } else if (m.t === 'cancel') { const q = queue.indexOf(u); if (q >= 0) queue.splice(q, 1); }
     else if (m.t === 'leave') leave(u);
-    else if (m.t === 'in' && u.m && !u.m.over && Array.isArray(m.k)) { const p = u.m.ps[u.i]; p.k = m.k.slice(0, 4).map(v => v ? 1 : 0); p.a = Number(m.a) || 0; p.s = m.s ? 1 : 0; }
+    else if (m.t === 'in' && u.m && !u.m.over) { const p = u.m.ps[u.i], c = v => Math.max(-1, Math.min(1, +v || 0)); p.mv = [c(m.mx), c(m.my)]; p.a = Number(m.a) || 0; p.s = m.s ? 1 : 0; }
     else if (m.t === 'top') send(ws, { t: 'top', list: Object.values(db).sort((a, b) => b.elo - a.elo).slice(0, 10).map(p => ({ name: p.name, elo: p.elo })) });
   });
   ws.on('close', () => leave(u));
